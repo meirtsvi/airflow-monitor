@@ -18,7 +18,10 @@ services:
     restart: always
 
   monitor:
-    build: .
+    # Repo root as context so the image can copy the source from failure-monitor-local/.
+    build:
+      context: ..
+      dockerfile: failure-monitor/Dockerfile
     env_file:
       - .env
     environment:

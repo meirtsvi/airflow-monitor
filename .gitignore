@@ -1,3 +1,7 @@
 failure-monitor/certs/host-ca.crt
 __pycache__/
 .env
+.venv/
+.pgdata/
+*.log
+*.pid

@@ -1,0 +1,8 @@
+# Build context for failure-monitor is the repo root; keep local-run state out of it.
+.git
+**/.venv
+**/.pgdata
+**/__pycache__
+**/*.log
+**/.env
+airflow-2.7
