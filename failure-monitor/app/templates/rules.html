@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  .mode { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; font-size: 12.5px; }
+  .pattern { color: var(--text); background: var(--surface-2); border: 1px solid var(--border); padding: 2px 6px; border-radius: 6px;
+             display: inline-block; max-width: 360px; overflow-wrap: anywhere; }
+  .hits { font-weight: 600; font-size: 16px; }
+  .arrow { color: var(--muted); }
+  .table-wrap { overflow-x: auto; }
+</style>
+
+<div class="page-head">
+  <div>
+    <h1>Rules</h1>
+    <p>Error pattern → action mapping from <code>{{ rules_path }}</code>. Checked top to bottom; first match wins. Re-run start.sh after editing.</p>
+  </div>
+</div>
+
+{% if rules_error %}<div class="alert">⚠ {{ rules_error }}</div>{% endif %}
+
+<div class="card table-wrap">
+  <table>
+    <thead>
+      <tr><th>#</th><th>Rule</th><th>Matches</th><th></th><th>Action</th><th>Mode</th><th>Hits</th></tr>
+    </thead>
+    <tbody>
+    {% for r in rules %}
+      <tr>
+        <td class="muted tabular">{{ loop.index }}</td>
+        <td style="min-width:180px">
+          <span class="chip mono">{{ r.id }}</span>
+          {% if r.hint %}<div class="muted" style="margin-top:6px;max-width:320px">{{ r.hint }}</div>{% endif %}
+        </td>
+        <td>
+          <code class="pattern">{{ r.pattern }}</code>
+          {% if r.dag_id != '.*' or r.task_id != '.*' %}
+          <div class="muted" style="margin-top:6px">only dag <code>{{ r.dag_id }}</code>, task <code>{{ r.task_id }}</code></div>
+          {% endif %}
+        </td>
+        <td class="arrow">→</td>
+        <td><span class="chip mono">{{ r.action }}</span></td>
+        <td>
+          {% if r.auto and r.action != 'none' %}
+          <span class="badge tone-good"><span class="badge-icon">⚡</span>Automatic</span>
+          <div class="muted" style="margin-top:6px">max {{ r.max_auto_attempts }} per task</div>
+          {% else %}
+          <span class="badge tone-warning"><span class="badge-icon">✋</span>Manual</span>
+          {% endif %}
+        </td>
+        <td><a class="hits tabular" href="/?status=all">{{ hits.get(r.id, 0) }}</a></td>
+      </tr>
+    {% endfor %}
+      <tr>
+        <td></td>
+        <td><span class="chip mono">{{ unclassified }}</span><div class="muted" style="margin-top:6px">Add a rule for recurring errors.</div></td>
+        <td class="muted">No rule matched</td>
+        <td class="arrow">→</td>
+        <td><span class="chip mono">none</span></td>
+        <td><span class="badge tone-warning"><span class="badge-icon">✋</span>Manual</span></td>
+        <td><span class="hits tabular">{{ hits.get(unclassified, 0) }}</span></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+{% endblock %}

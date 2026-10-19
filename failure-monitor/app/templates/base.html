@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Failure Monitor</title>
+  <script>
+    // Apply a saved theme before first paint to avoid a flash.
+    try { const t = localStorage.getItem("theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/htmx.org@1.9.12/dist/htmx.min.js"></script>
+  <style>
+    :root {
+      --bg: #f7f7f8; --surface: #ffffff; --surface-2: #f2f3f5; --border: #e6e7eb; --border-strong: #d4d6dc;
+      --text: #16181d; --text-2: #4b5160; --muted: #80869a;
+      --accent: #4f46e5; --accent-soft: #eef0ff; --accent-text: #ffffff;
+      --critical: #d03b3b; --critical-soft: #fdecec; --critical-text: #a52626;
+      --warning: #fab219; --warning-soft: #fff5de; --warning-text: #8a5a00;
+      --good: #0ca30c; --good-soft: #e7f7e7; --good-text: #006300;
+      --info: #3b82f6; --info-soft: #e8f0fe; --info-text: #1d4ed8;
+      --code-bg: #0f1117; --code-text: #e4e6ee;
+      --shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 1px 3px rgba(16, 24, 40, .06);
+      --shadow-lg: 0 12px 32px rgba(16, 24, 40, .14), 0 2px 6px rgba(16, 24, 40, .08);
+      --radius: 12px;
+      color-scheme: light;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #0e0f12; --surface: #16181d; --surface-2: #1d2027; --border: #262a33; --border-strong: #353a46;
+        --text: #eceef3; --text-2: #b4b9c6; --muted: #7d8395;
+        --accent: #818cf8; --accent-soft: #23264a; --accent-text: #0e0f12;
+        --critical-soft: #3a1a1c; --critical-text: #f28b8b;
+        --warning-soft: #3a2d10; --warning-text: #fcd27a;
+        --good-soft: #12301a; --good-text: #7fdc7f;
+        --info-soft: #172848; --info-text: #93b8fb;
+        --code-bg: #0a0b0e;
+        --shadow: 0 1px 2px rgba(0, 0, 0, .3);
+        --shadow-lg: 0 12px 32px rgba(0, 0, 0, .5);
+        color-scheme: dark;
+      }
+    }
+    :root[data-theme="dark"] {
+      --bg: #0e0f12; --surface: #16181d; --surface-2: #1d2027; --border: #262a33; --border-strong: #353a46;
+      --text: #eceef3; --text-2: #b4b9c6; --muted: #7d8395;
+      --accent: #818cf8; --accent-soft: #23264a; --accent-text: #0e0f12;
+      --critical-soft: #3a1a1c; --critical-text: #f28b8b;
+      --warning-soft: #3a2d10; --warning-text: #fcd27a;
+      --good-soft: #12301a; --good-text: #7fdc7f;
+      --info-soft: #172848; --info-text: #93b8fb;
+      --code-bg: #0a0b0e;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .3);
+      --shadow-lg: 0 12px 32px rgba(0, 0, 0, .5);
+      color-scheme: dark;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; }
+    body { font: 14px/1.5 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--text);
+           -webkit-font-smoothing: antialiased; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code, pre, .mono { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+
+    /* Layout */
+    .app { display: grid; grid-template-columns: 232px minmax(0, 1fr); min-height: 100vh; }
+    .sidebar { background: var(--surface); border-right: 1px solid var(--border); padding: 20px 14px; display: flex; flex-direction: column; gap: 4px;
+               position: sticky; top: 0; height: 100vh; }
+    .brand { display: flex; align-items: center; gap: 10px; padding: 4px 10px 20px; font-weight: 700; font-size: 15px; letter-spacing: -.01em; }
+    .brand-mark { width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(135deg, var(--accent), #a78bfa);
+                  display: grid; place-items: center; color: #fff; font-size: 14px; }
+    .nav a { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; color: var(--text-2); font-weight: 500; }
+    .nav a:hover { background: var(--surface-2); color: var(--text); text-decoration: none; }
+    .nav a.active { background: var(--accent-soft); color: var(--accent); }
+    .nav svg { width: 18px; height: 18px; flex: none; }
+    .sidebar-foot { margin-top: auto; display: flex; flex-direction: column; gap: 10px; padding: 0 4px; }
+    .main { padding: 28px 36px 48px; min-width: 0; }
+    .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 22px; flex-wrap: wrap; }
+    .page-head h1 { margin: 0; font-size: 22px; letter-spacing: -.02em; }
+    .page-head p { margin: 4px 0 0; color: var(--muted); }
+
+    /* Surfaces */
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+    .card-pad { padding: 20px; }
+    .card + .card { margin-top: 16px; }
+    .card h3 { margin: 0 0 12px; font-size: 14px; }
+    .muted { color: var(--muted); font-size: 12.5px; }
+    .alert { display: flex; gap: 8px; align-items: center; background: var(--critical-soft); color: var(--critical-text);
+             padding: 10px 14px; border-radius: 10px; margin-bottom: 14px; font-weight: 500; }
+
+    /* Buttons and inputs */
+    .btn { font: inherit; font-weight: 500; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px;
+           border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); cursor: pointer; }
+    .btn:hover { background: var(--surface-2); text-decoration: none; }
+    .btn-primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+    .btn-primary:hover { background: var(--accent); filter: brightness(1.08); }
+    .btn-ghost { border-color: transparent; background: transparent; color: var(--text-2); }
+    .input { font: inherit; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); width: 100%; }
+    .input:focus, .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+    /* Status badges: icon + label, color is secondary */
+    .badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 4px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+    .badge-icon { width: 16px; height: 16px; border-radius: 999px; display: grid; place-items: center; font-size: 10px; font-weight: 700; color: #fff; }
+    .tone-critical { background: var(--critical-soft); color: var(--critical-text); } .tone-critical .badge-icon { background: var(--critical); }
+    .tone-warning { background: var(--warning-soft); color: var(--warning-text); } .tone-warning .badge-icon { background: var(--warning); color: #3a2500; }
+    .tone-good { background: var(--good-soft); color: var(--good-text); } .tone-good .badge-icon { background: var(--good); }
+    .tone-info { background: var(--info-soft); color: var(--info-text); } .tone-info .badge-icon { background: var(--info); }
+    .chip { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 6px; font-size: 11.5px; font-weight: 500;
+            background: var(--surface-2); color: var(--text-2); border: 1px solid var(--border); white-space: nowrap; }
+
+    /* Tables */
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; font-size: 11.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em;
+         padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--surface); }
+    td { padding: 14px 16px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    tbody tr:last-child td { border-bottom: 0; }
+    tbody tr:hover td { background: var(--surface-2); }
+    .tabular { font-variant-numeric: tabular-nums; }
+
+    pre { background: var(--code-bg); color: var(--code-text); padding: 16px; border-radius: 10px; overflow: auto; white-space: pre-wrap;
+          word-break: break-word; margin: 0; line-height: 1.6; }
+
+    /* Actions menu */
+    details.menu { position: relative; display: inline-block; }
+    details.menu > summary { list-style: none; }
+    details.menu > summary::-webkit-details-marker { display: none; }
+    .menu-list { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; min-width: 240px; background: var(--surface);
+                 border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-lg); padding: 6px; }
+    .menu-list form { margin: 0; }
+    .menu-item { display: flex; flex-direction: column; align-items: flex-start; width: 100%; text-align: left; font: inherit; font-size: 13px;
+                 padding: 8px 10px; border: 0; border-radius: 6px; background: none; color: var(--text); cursor: pointer; }
+    .menu-item:hover { background: var(--surface-2); text-decoration: none; }
+    .menu-item small { color: var(--muted); font-size: 11.5px; }
+    .menu-item .suggested { color: var(--accent); font-size: 11px; font-weight: 600; margin-left: 6px; }
+    .menu-sep { height: 1px; background: var(--border); margin: 6px 4px; }
+
+    /* Dialog */
+    dialog { border: 1px solid var(--border); border-radius: 14px; padding: 0; width: min(440px, calc(100vw - 32px));
+             background: var(--surface); color: var(--text); box-shadow: var(--shadow-lg); }
+    dialog::backdrop { background: rgba(10, 12, 18, .45); backdrop-filter: blur(2px); }
+    .dialog-body { padding: 22px; }
+    .dialog-body h3 { margin: 0 0 4px; font-size: 16px; }
+    .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+
+    @media (max-width: 860px) {
+      .app { grid-template-columns: minmax(0, 1fr); }
+      .sidebar { position: static; height: auto; flex-direction: row; align-items: center; padding: 10px 16px; }
+      .brand { padding: 0 12px 0 0; }
+      .nav { display: flex; gap: 4px; }
+      .sidebar-foot { margin: 0 0 0 auto; flex-direction: row; }
+      #theme-label { display: none; }
+      .brand { font-size: 0; gap: 0; }
+      .main { padding: 20px 16px 40px; }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><span class="brand-mark">◆</span> Failure Monitor</div>
+    <nav class="nav">
+      <a href="/" class="{{ 'active' if page == 'failures' }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+        Failures
+      </a>
+      <a href="/rules" class="{{ 'active' if page == 'rules' }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M7 12h10"/><path d="M10 18h4"/></svg>
+        Rules
+      </a>
+    </nav>
+    <div class="sidebar-foot">
+      <button class="btn btn-ghost" id="theme-toggle" type="button" title="Toggle light / dark">
+        <span id="theme-icon">◐</span> <span id="theme-label">Theme</span>
+      </button>
+    </div>
+  </aside>
+
+  <main class="main">
+    {% block content %}{% endblock %}
+  </main>
+</div>
+
+<!-- Shared dialog for "handled externally"; lives outside the auto-refreshing table. -->
+<dialog id="note-dialog">
+  <form method="post" id="note-form" class="dialog-body">
+    <h3>Mark as handled externally</h3>
+    <p class="muted" id="note-target" style="margin:0 0 14px"></p>
+    <input type="hidden" name="action" value="handled_externally">
+    <input type="hidden" name="back" id="note-back">
+    <label class="muted" for="note-input">What was done?</label>
+    <input class="input" type="text" name="note" id="note-input" required placeholder="e.g. Called the vendor, quota raised" style="margin-top:6px">
+    <div class="dialog-actions">
+      <button class="btn" type="button" onclick="this.closest('dialog').close()">Cancel</button>
+      <button class="btn btn-primary" type="submit">Confirm</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+  // Theme toggle: system -> light -> dark -> system
+  (function () {
+    const root = document.documentElement, label = document.getElementById("theme-label"), icon = document.getElementById("theme-icon");
+    const names = { "": "System", light: "Light", dark: "Dark" }, icons = { "": "◐", light: "☀", dark: "☾" };
+    function show() { const t = root.dataset.theme || ""; label.textContent = names[t]; icon.textContent = icons[t]; }
+    document.getElementById("theme-toggle").addEventListener("click", function () {
+      const next = { "": "light", light: "dark", dark: "" }[root.dataset.theme || ""];
+      if (next) root.dataset.theme = next; else delete root.dataset.theme;
+      try { next ? localStorage.setItem("theme", next) : localStorage.removeItem("theme"); } catch (e) {}
+      show();
+    });
+    show();
+  })();
+
+  function openNoteDialog(failureId, target, back) {
+    const d = document.getElementById("note-dialog");
+    // setAttribute, not .action: the form's hidden input named "action" shadows that property.
+    document.getElementById("note-form").setAttribute("action", "/failures/" + failureId + "/action");
+    document.getElementById("note-target").textContent = target;
+    document.getElementById("note-back").value = back;
+    document.getElementById("note-input").value = "";
+    document.querySelectorAll("details.menu[open]").forEach(m => m.removeAttribute("open"));
+    d.showModal();
+  }
+
+  // Close an open actions menu when clicking elsewhere; only one open at a time.
+  document.addEventListener("click", function (e) {
+    document.querySelectorAll("details.menu[open]").forEach(m => { if (!m.contains(e.target)) m.removeAttribute("open"); });
+  });
+
+  // Used by the auto-refresh trigger: don't refresh while the user is interacting.
+  function userBusy() { return !!document.querySelector("details.menu[open], dialog[open]"); }
+</script>
+</body>
+</html>

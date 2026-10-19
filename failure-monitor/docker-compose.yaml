@@ -1,0 +1,37 @@
+# Failure monitor + dashboard. Independent of any specific Airflow install:
+# point it at one with the AIRFLOW_* variables in .env.
+services:
+  monitor-db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: monitor
+      POSTGRES_PASSWORD: monitor
+      POSTGRES_DB: monitor
+    ports:
+      - "5433:5432"
+    volumes:
+      - monitor-db-volume:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "monitor"]
+      interval: 5s
+      retries: 10
+    restart: always
+
+  monitor:
+    build: .
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://monitor:monitor@monitor-db:5432/monitor
+    ports:
+      - "8000:8000"
+    extra_hosts:
+      # lets the container reach an Airflow running on the host (Colima / Linux Docker)
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      monitor-db:
+        condition: service_healthy
+    restart: always
+
+volumes:
+  monitor-db-volume:

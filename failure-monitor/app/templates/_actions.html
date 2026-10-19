@@ -1,0 +1,30 @@
+{# Expects `f` (failure row), `rule` (Rule or None), optional `back` (where to return after the action). #}
+{% set back = back if back is defined else '/' %}
+<details class="menu">
+  <summary class="btn">Actions <span aria-hidden="true">▾</span></summary>
+  <div class="menu-list">
+    <form method="post" action="/failures/{{ f.id }}/action">
+      <input type="hidden" name="action" value="clear"><input type="hidden" name="back" value="{{ back }}">
+      <button class="menu-item">
+        <span>↻ Retry (clear){% if rule and rule.action == 'clear' %}<span class="suggested">Suggested</span>{% endif %}</span>
+        <small>Re-run this task and its downstream tasks</small>
+      </button>
+    </form>
+    <form method="post" action="/failures/{{ f.id }}/action">
+      <input type="hidden" name="action" value="mark_success"><input type="hidden" name="back" value="{{ back }}">
+      <button class="menu-item">
+        <span>✓ Mark success{% if rule and rule.action == 'mark_success' %}<span class="suggested">Suggested</span>{% endif %}</span>
+        <small>Skip this task and continue the DAG run</small>
+      </button>
+    </form>
+    <button class="menu-item" type="button"
+            onclick="openNoteDialog({{ f.id }}, {{ (f.dag_id ~ ' / ' ~ f.task_id) | tojson | forceescape }}, {{ back | tojson | forceescape }})">
+      <span>✎ Handled externally…</span>
+      <small>Fixed outside the system; add a note</small>
+    </button>
+    <div class="menu-sep"></div>
+    <a class="menu-item" href="{{ airflow_task_url(f) }}" target="_blank" rel="noopener">
+      <span>Open in Airflow ↗</span>
+    </a>
+  </div>
+</details>

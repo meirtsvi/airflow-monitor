@@ -1,0 +1,61 @@
+# Error rules. Each failed task's log is matched against `pattern` (regex, case-insensitive).
+# Rules are checked top to bottom; the first match wins. Unmatched failures are "unclassified".
+#
+# Fields:
+#   id                 unique name, shown on the dashboard
+#   pattern            regex searched in the task log. Named groups (?P<name>...) can be used in `hint`
+#   dag_id, task_id    optional regex filters (full match), default ".*"
+#   action             clear (retry task + downstream) | mark_success | none
+#   auto               true = run the action automatically; false = only suggest it on the dashboard
+#   max_auto_attempts  automatic actions allowed per task instance before it needs a human (default 3)
+#   hint               text shown on the dashboard
+#
+# The file is copied into the monitor image; run start.sh again after editing it.
+
+rules:
+  - id: pg_statement_timeout
+    pattern: "canceling statement due to statement timeout"
+    action: clear
+    auto: true
+    max_auto_attempts: 3
+    hint: "Query exceeded statement_timeout. Usually transient load; retried automatically."
+
+  - id: pg_lock_timeout
+    pattern: "canceling statement due to lock timeout"
+    action: clear
+    auto: true
+    max_auto_attempts: 3
+    hint: "Row/table lock held by another session. Retried automatically."
+
+  - id: db_host_unreachable
+    # psycopg2: could not translate host name "x"; psycopg 3: failed to resolve host 'x'
+    pattern: '(?:could not translate host name|failed to resolve host) ["''](?P<host>[^"'']+)["'']|connection refused|could not connect to server'
+    action: clear
+    auto: true
+    max_auto_attempts: 2
+    hint: "Database host {host} unreachable. Retried automatically; if it keeps failing check the connection config."
+
+  - id: missing_relation
+    pattern: 'relation "(?P<table>[^"]+)" does not exist'
+    action: clear
+    auto: false
+    hint: "Table {table} does not exist. Check the upstream job that creates it, then retry."
+
+  - id: duplicate_key
+    pattern: 'duplicate key value violates unique constraint "(?P<constraint>[^"]+)"'
+    action: mark_success
+    auto: false
+    hint: "Row already exists ({constraint}). If the data is already loaded, mark success."
+
+  - id: permission_denied
+    pattern: 'permission denied for (table|schema|relation) (?P<object>\S+)'
+    action: none
+    auto: false
+    hint: "Missing grant on {object}. Ask the DBA for access, then retry or mark handled."
+
+  - id: data_quality_failed
+    pattern: "SQL check failed|Test failed"
+    dag_id: "data_quality_check"
+    action: none
+    auto: false
+    hint: "Data quality check failed. Investigate the source data before retrying."

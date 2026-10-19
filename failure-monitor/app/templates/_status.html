@@ -1,0 +1,2 @@
+{% set st = STATUS_STYLE.get(status_value, (status_value, '?', 'info')) %}
+<span class="badge tone-{{ st[2] }}"><span class="badge-icon">{{ st[1] }}</span>{{ st[0] }}</span>

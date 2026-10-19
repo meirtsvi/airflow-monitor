@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 20px; }
+  .stats .card + .card { margin-top: 0; }
+  .stat { display: block; padding: 18px 20px; color: var(--text); transition: border-color .15s, box-shadow .15s; }
+  .stat:hover { text-decoration: none; border-color: var(--border-strong); }
+  .stat.active { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .stat-label { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; color: var(--text-2); }
+  .stat-icon { width: 18px; height: 18px; border-radius: 999px; display: grid; place-items: center; font-size: 10px; font-weight: 700; color: #fff; }
+  .stat-value { font-size: 32px; font-weight: 600; letter-spacing: -.02em; margin-top: 8px; line-height: 1.1; }
+  .stat-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .toolbar-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; flex: 1; min-width: 0; }
+  .search { position: relative; flex: 0 1 300px; min-width: 200px; }
+  .search svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); width: 15px; height: 15px; color: var(--muted); }
+  .search .input { padding-left: 34px; }
+  .filter-pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 500;
+                 background: var(--accent-soft); color: var(--accent); }
+  .filter-pill a { color: inherit; opacity: .7; }
+  .live { display: inline-flex; align-items: center; gap: 8px; }
+  .live-dot { width: 8px; height: 8px; border-radius: 999px; background: var(--good); box-shadow: 0 0 0 3px var(--good-soft); }
+  .live-dot.down { background: var(--critical); box-shadow: 0 0 0 3px var(--critical-soft); }
+  .dag-link { font-weight: 600; color: var(--text); }
+  .task { color: var(--text-2); }
+  .err { color: var(--text); background: var(--surface-2); border: 1px solid var(--border); padding: 2px 6px; border-radius: 6px;
+         display: inline-block; max-width: 100%; overflow-wrap: anywhere; }
+  .hint { color: var(--muted); font-size: 12.5px; margin-top: 6px; }
+  .empty { padding: 56px 20px; text-align: center; color: var(--muted); }
+  .empty-icon { font-size: 26px; margin-bottom: 6px; }
+  .table-wrap { overflow-x: auto; }
+  @media (max-width: 1000px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 860px) { .col-rule, .col-when { display: none; } }
+</style>
+
+{% set filter_names = {'open': 'Open', 'retrying': 'Retrying', 'auto_fixed': 'Fixed automatically', 'manual_fixed': 'Handled manually', 'all': 'All failures'} %}
+
+<div class="page-head">
+  <div>
+    <h1>Failures</h1>
+    <p>Failed Airflow tasks, how they were classified, and what was done about them.</p>
+  </div>
+  <a class="btn" href="/?status=all">View all failures</a>
+</div>
+
+<div id="stats"></div>
+
+<form id="filters" class="card" onsubmit="return false">
+  <input type="hidden" name="status" value="{{ status }}">
+  <div class="toolbar">
+    <div class="toolbar-left">
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input class="input" type="search" name="q" value="{{ q }}" placeholder="Filter by DAG or task…" autocomplete="off"
+               hx-get="/partials/failures" hx-include="#filters" hx-target="#board" hx-trigger="input changed delay:250ms, search">
+      </div>
+      <span class="filter-pill">{{ filter_names.get(status, STATUS_STYLE.get(status, (status,))[0]) }}
+        {% if status != 'open' %}<a href="/" title="Back to open failures">✕</a>{% endif %}</span>
+    </div>
+    <div id="live" class="live muted"></div>
+  </div>
+  <div id="board" class="table-wrap"
+       hx-get="/partials/failures" hx-include="#filters"
+       hx-trigger="load, every 10s [!userBusy()]">
+    <div class="empty">Loading…</div>
+  </div>
+</form>
+{% endblock %}

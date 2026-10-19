@@ -1,0 +1,84 @@
+{# Main swap target is #board. #stats and #live are updated out-of-band from the same response. #}
+{% set card_style = {
+  'open': ('!', 'var(--critical)'),
+  'retrying': ('↻', 'var(--warning)'),
+  'auto_fixed': ('✓', 'var(--good)'),
+  'manual_fixed': ('✓', 'var(--info)'),
+} %}
+<div id="stats" class="stats" hx-swap-oob="true">
+  {% for key, label, sub in cards %}
+  <a class="card stat {{ 'active' if status == key }}" href="/?status={{ key }}{{ '&q=' ~ (q | urlencode) if q }}">
+    <div class="stat-label">
+      <span class="stat-icon" style="background: {{ card_style[key][1] }}{{ '; color:#3a2500' if key == 'retrying' }}">{{ card_style[key][0] }}</span>
+      {{ label }}
+    </div>
+    <div class="stat-value">{{ summary[key] }}</div>
+    <div class="stat-sub">{{ sub }}</div>
+  </a>
+  {% endfor %}
+</div>
+
+<div id="live" class="live muted" hx-swap-oob="true">
+  {% if poller.last_error %}
+    <span class="live-dot down"></span> Airflow unreachable
+  {% elif poller.last_poll_at %}
+    <span class="live-dot"></span> Polled {{ poller.last_poll_at | timeago }} · {{ summary.total }} tracked
+  {% else %}
+    <span class="live-dot down"></span> Waiting for first poll
+  {% endif %}
+</div>
+
+{% if rules_error %}<div class="alert" style="margin:14px 16px 0">⚠ {{ rules_error }}</div>{% endif %}
+{% if poller.last_error %}<div class="alert" style="margin:14px 16px 0">⚠ Last poll failed: {{ poller.last_error }}</div>{% endif %}
+
+{% if not failures %}
+<div class="empty">
+  <div class="empty-icon">✓</div>
+  {% if q %}No failures match “{{ q }}”.{% elif status == 'open' %}Nothing needs your attention.{% else %}No failures in this view.{% endif %}
+</div>
+{% else %}
+<table>
+  <thead>
+    <tr>
+      <th>Task</th>
+      <th class="col-rule">Rule</th>
+      <th>Error</th>
+      <th>Status</th>
+      <th class="col-when">Failed</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for f in failures %}
+    {% set rule = rules.get(f.rule_id) %}
+    <tr>
+      <td style="min-width:200px">
+        <a class="dag-link" href="/failures/{{ f.id }}">{{ f.dag_id }}</a>
+        <div class="task mono">{{ f.task_id }}{% if f.map_index >= 0 %}[{{ f.map_index }}]{% endif %}</div>
+        <div class="muted mono" style="font-size:11.5px">{{ f.run_id }}</div>
+      </td>
+      <td class="col-rule">
+        <span class="chip mono">{{ f.rule_id }}</span>
+        {% if rule %}
+        <div class="muted" style="margin-top:6px">{{ rule.action }} · {{ 'automatic' if rule.auto and rule.action != 'none' else 'manual' }}</div>
+        {% endif %}
+      </td>
+      <td style="max-width:440px">
+        <code class="err">{{ f.matched_text or (f.error_excerpt.splitlines()[-1] if f.error_excerpt else '') }}</code>
+        {% if f.hint %}<div class="hint">{{ f.hint }}</div>{% endif %}
+      </td>
+      <td>
+        {% with status_value = f.status %}{% include "_status.html" %}{% endwith %}
+        {% if f.handled_by %}<div class="muted" style="margin-top:6px">by {{ 'rule' if f.handled_by == 'auto' else 'user' }}</div>{% endif %}
+        {% if f.note %}<div class="muted" style="margin-top:2px;max-width:200px">“{{ f.note }}”</div>{% endif %}
+      </td>
+      <td class="col-when tabular" title="{{ f.failed_at }}">
+        {{ f.failed_at | timeago }}
+        <div class="muted">try {{ f.try_number }}</div>
+      </td>
+      <td style="text-align:right">{% include "_actions.html" %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}

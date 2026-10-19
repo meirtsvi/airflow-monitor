@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  .crumb { display: inline-flex; gap: 6px; color: var(--muted); margin-bottom: 14px; font-size: 13px; }
+  .detail-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+  .detail-head h1 { margin: 0; font-size: 22px; letter-spacing: -.02em; }
+  .facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; margin-top: 20px; border-top: 1px solid var(--border); }
+  .fact { padding: 14px 20px 0 0; }
+  .fact-label { font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
+  .fact-value { margin-top: 4px; overflow-wrap: anywhere; }
+  .hint-box { margin-top: 18px; padding: 12px 14px; border-radius: 10px; background: var(--accent-soft); color: var(--text); display: flex; gap: 10px; }
+  details.log summary { cursor: pointer; color: var(--accent); font-weight: 500; margin: 14px 0 10px; }
+  @media (max-width: 860px) { .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+</style>
+
+<a class="crumb" href="/">← Failures</a>
+
+<div class="card card-pad">
+  <div class="detail-head">
+    <div>
+      <h1>{{ f.dag_id }}</h1>
+      <div class="mono" style="color:var(--text-2);margin-top:4px">{{ f.task_id }}{% if f.map_index >= 0 %}[{{ f.map_index }}]{% endif %}</div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center">
+      {% with status_value = f.status %}{% include "_status.html" %}{% endwith %}
+      {% set back = '/failures/' ~ f.id %}
+      {% include "_actions.html" %}
+    </div>
+  </div>
+
+  <div class="facts">
+    <div class="fact"><div class="fact-label">Run</div><div class="fact-value mono">{{ f.run_id }}</div></div>
+    <div class="fact"><div class="fact-label">Failed</div><div class="fact-value tabular" title="{{ f.failed_at }}">{{ f.failed_at | timeago }} · try {{ f.try_number }}</div></div>
+    <div class="fact"><div class="fact-label">Rule</div><div class="fact-value"><span class="chip mono">{{ f.rule_id }}</span></div></div>
+    <div class="fact"><div class="fact-label">Action</div><div class="fact-value">
+      {% if rule %}{{ rule.action }} · {{ 'automatic, max ' ~ rule.max_auto_attempts if rule.auto and rule.action != 'none' else 'manual' }}{% else %}manual{% endif %}
+    </div></div>
+  </div>
+
+  {% if f.hint %}<div class="hint-box"><span>💡</span><span>{{ f.hint }}</span></div>{% endif %}
+  {% if f.note %}<div class="hint-box" style="background:var(--info-soft)"><span>✎</span><span>{{ f.note }}</span></div>{% endif %}
+</div>
+
+<div class="card card-pad">
+  <h3>Error</h3>
+  <pre>{{ f.error_excerpt }}</pre>
+  <details class="log">
+    <summary>Full log · {{ f.log_text.splitlines() | length }} lines</summary>
+    <pre>{{ f.log_text }}</pre>
+  </details>
+</div>
+
+<div class="card">
+  <div class="card-pad" style="padding-bottom:0"><h3>Action history</h3></div>
+  {% if not actions %}
+  <div class="empty muted" style="padding:20px 20px 24px">No actions yet.</div>
+  {% else %}
+  <table>
+    <thead><tr><th>When</th><th>Try</th><th>Action</th><th>By</th><th>Result</th><th>Detail</th></tr></thead>
+    <tbody>
+    {% for a in actions %}
+      <tr>
+        <td class="tabular" title="{{ a.created_at }}">{{ a.created_at | timeago }}</td>
+        <td class="tabular">{{ a.try_number }}</td>
+        <td><span class="chip mono">{{ a.action }}</span></td>
+        <td>{{ 'rule' if a.actor == 'auto' else 'user' }}</td>
+        <td>
+          {% if a.success %}<span class="badge tone-good"><span class="badge-icon">✓</span>OK</span>
+          {% else %}<span class="badge tone-critical"><span class="badge-icon">✕</span>Failed</span>{% endif %}
+        </td>
+        <td class="muted" style="overflow-wrap:anywhere">{{ a.detail }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+{% endblock %}
