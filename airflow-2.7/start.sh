@@ -5,6 +5,11 @@ cd "$(dirname "$0")"
 
 if docker compose version >/dev/null 2>&1; then COMPOSE="docker compose"; else COMPOSE="docker-compose"; fi
 
+if [[ ! -f .env ]]; then
+  cp .env.example .env
+  echo "Created .env from .env.example."
+fi
+
 $COMPOSE up -d --build
 
 echo "Waiting for Airflow webserver..."

@@ -1,2 +1,3 @@
 failure-monitor/certs/host-ca.crt
 __pycache__/
+.env
